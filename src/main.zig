@@ -2,20 +2,15 @@ const std = @import("std");
 const engine = @import("engine.zig");
 
 pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
+    var a: engine.Value = undefined;
+    a.init(2.0);
+    var b: engine.Value = undefined;
+    b.init(-3.0);
+    var c: engine.Value = undefined;
+    c.init(10.0);
 
-    var arena = std.heap.ArenaAllocator.init(gpa.allocator());
-    defer arena.deinit();
-
-    const allocator = arena.allocator();
-
-    const a = engine.Value.init(2.0);
-    const b = engine.Value.init(-3.0);
-    const c = engine.Value.init(10.0);
-
-    const temp = try a.mul(&b, allocator);
-    const result = try temp.add(&c, allocator);
+    const temp = try a.mul(&b);
+    const result = try temp.add(&c);
 
     a.debug();
     b.debug();
