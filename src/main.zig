@@ -2,20 +2,25 @@ const std = @import("std");
 const engine = @import("engine.zig");
 
 pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
-    const allocator = gpa.allocator();
+    var buffer: [1024]u8 = undefined;
+    var fba = std.heap.FixedBufferAllocator.init(&buffer);
+    const allocator = fba.allocator();
 
     // inputs x1, x2
-    var x1 = engine.Value{ .data = 2.0, .grad = 0.0, .children = .{ null, null }, .op = null, .op_data = 0.0 };
-    var x2 = engine.Value{ .data = 0.0, .grad = 0.0, .children = .{ null, null }, .op = null, .op_data = 0.0 };
+    var x1: engine.Value = undefined;
+    x1.init(2.0);
+    var x2: engine.Value = undefined;
+    x2.init(0.0);
 
     // weights w1, w2
-    var w1 = engine.Value{ .data = -3.0, .grad = 0.0, .children = .{ null, null }, .op = null, .op_data = 0.0 };
-    var w2 = engine.Value{ .data = 1.0, .grad = 0.0, .children = .{ null, null }, .op = null, .op_data = 0.0 };
+    var w1: engine.Value = undefined;
+    w1.init(-3.0);
+    var w2: engine.Value = undefined;
+    w2.init(1.0);
 
     // bias
-    var b = engine.Value{ .data = 6.8813735870195432, .grad = 0.0, .children = .{ null, null }, .op = null, .op_data = 0.0 };
+    var b: engine.Value = undefined;
+    b.init(6.8813735870195432);
 
     // x1*w1 + x2*w2 + b
     var x1w1 = x1.mul(&w1);
@@ -23,18 +28,7 @@ pub fn main() !void {
     var x1w1x2w2 = x1w1.add(&x2w2);
     var n = x1w1x2w2.add(&b);
 
-    // e = (2*n).exp()
-    var two = engine.Value{ .data = 2.0, .grad = 0.0, .children = .{ null, null }, .op = null, .op_data = 0.0 };
-    var two_n = two.mul(&n);
-    var e = two_n.exp();
-
-    // o = (e - 1) / (e + 1)
-    var one = engine.Value{ .data = 1.0, .grad = 0.0, .children = .{ null, null }, .op = null, .op_data = 0.0 };
-    var one2 = engine.Value{ .data = 1.0, .grad = 0.0, .children = .{ null, null }, .op = null, .op_data = 0.0 };
-    var e_minus_1 = e.sub(&one);
-    var e_plus_1 = e.add(&one2);
-    var o = e_minus_1.div(&e_plus_1);
-
+    var o = n.tanh();
     try o.backward(allocator);
 
     std.debug.print("Result: {d:.6}\n", .{o.data});

@@ -9,6 +9,7 @@ const OpType = enum {
     div,
     pow,
     exp,
+    tanh,
 };
 
 pub const Value = struct {
@@ -56,6 +57,11 @@ pub const Value = struct {
 
     pub fn exp(self: *Value) Value {
         const result = Value{ .data = @exp(self.data), .grad = 0.0, .children = .{ self, null }, .op = OpType.exp, .op_data = 0.0 };
+        return result;
+    }
+
+    pub fn tanh(self: *Value) Value {
+        const result = Value{ .data = (@exp(self.data * 2.0) - 1.0) / (@exp(self.data * 2.0) + 1.0), .grad = 0.0, .children = .{ self, null }, .op = OpType.tanh, .op_data = 0.0 };
         return result;
     }
 
@@ -112,6 +118,14 @@ pub const Value = struct {
         self.children[1].?.grad += (-a / (b * b)) * self.grad;
     }
 
+    pub fn tanh_backward(self: *Value) void {
+        assert(self.op == .tanh);
+        assert(self.children[0] != null);
+
+        const derivative = 1.0 - (self.data * self.data);
+        self.children[0].?.grad += derivative * self.grad;
+    }
+
     pub fn build_topo(self: *Value, allocator: std.mem.Allocator) !std.ArrayListUnmanaged(*Value) {
         var visited: std.AutoHashMapUnmanaged(*Value, void) = .{};
         defer visited.deinit(allocator);
@@ -151,6 +165,7 @@ pub const Value = struct {
                     .div => node.div_backward(),
                     .pow => node.pow_backward(),
                     .exp => node.exp_backward(),
+                    .tanh => node.tanh_backward(),
                 }
             }
         }
