@@ -4,11 +4,11 @@ const assert = std.debug.assert;
 
 const OpType = enum {
     add,
-    sub,
+    // sub,
     mul,
-    div,
-    pow,
-    exp,
+    // div,
+    // pow,
+    // exp,
     tanh,
 };
 
@@ -18,176 +18,111 @@ pub const Value = struct {
     children: [2]?*Value,
     op: ?OpType,
     op_data: f32,
-
-    pub fn init(self: *Value, data: f32) void {
-        self.* = .{
-            .data = data,
-            .grad = 0.0,
-            .children = .{ null, null },
-            .op = null,
-            .op_data = 0.0,
-        };
-    }
-
-    pub fn add(self: *Value, other: *Value) Value {
-        const result = Value{ .data = self.data + other.data, .grad = 0.0, .children = .{ self, other }, .op = OpType.add, .op_data = 0.0 };
-
-        return result;
-    }
-
-    pub fn sub(self: *Value, other: *Value) Value {
-        const result = Value{ .data = self.data - other.data, .grad = 0.0, .children = .{ self, other }, .op = OpType.sub, .op_data = 0.0 };
-        return result;
-    }
-
-    pub fn mul(self: *Value, other: *Value) Value {
-        const result = Value{ .data = self.data * other.data, .grad = 0.0, .children = .{ self, other }, .op = OpType.mul, .op_data = 0.0 };
-        return result;
-    }
-
-    pub fn div(self: *Value, other: *Value) Value {
-        const result = Value{ .data = self.data / other.data, .grad = 0.0, .children = .{ self, other }, .op = OpType.div, .op_data = 0.0 };
-        return result;
-    }
-
-    pub fn pow(self: *Value, exponent: f32) Value {
-        const result = Value{ .data = math.pow(f32, self.data, exponent), .grad = 0.0, .children = .{ self, null }, .op = OpType.pow, .op_data = exponent };
-        return result;
-    }
-
-    pub fn exp(self: *Value) Value {
-        const result = Value{ .data = @exp(self.data), .grad = 0.0, .children = .{ self, null }, .op = OpType.exp, .op_data = 0.0 };
-        return result;
-    }
-
-    pub fn tanh(self: *Value) Value {
-        const result = Value{ .data = (@exp(self.data * 2.0) - 1.0) / (@exp(self.data * 2.0) + 1.0), .grad = 0.0, .children = .{ self, null }, .op = OpType.tanh, .op_data = 0.0 };
-        return result;
-    }
-
-    pub fn add_backward(self: *Value) void {
-        assert(self.op == .add);
-        assert(self.children[0] != null);
-        assert(self.children[1] != null);
-
-        self.children[0].?.grad += self.grad * 1.0;
-        self.children[1].?.grad += self.grad * 1.0;
-    }
-
-    pub fn mul_backward(self: *Value) void {
-        assert(self.op == .mul);
-        assert(self.children[0] != null);
-        assert(self.children[1] != null);
-
-        self.children[0].?.grad += self.children[1].?.data * self.grad;
-        self.children[1].?.grad += self.children[0].?.data * self.grad;
-    }
-
-    pub fn pow_backward(self: *Value) void {
-        assert(self.op == .pow);
-        assert(self.children[0] != null);
-
-        self.children[0].?.grad += self.op_data * math.pow(f32, self.children[0].?.data, self.op_data - 1) * self.grad;
-    }
-
-    pub fn exp_backward(self: *Value) void {
-        assert(self.op == .exp);
-        assert(self.children[0] != null);
-
-        self.children[0].?.grad += self.data * self.grad;
-    }
-
-    pub fn sub_backward(self: *Value) void {
-        assert(self.op == .sub);
-        assert(self.children[0] != null);
-        assert(self.children[1] != null);
-
-        self.children[0].?.grad += self.grad;
-        self.children[1].?.grad += -self.grad;
-    }
-
-    pub fn div_backward(self: *Value) void {
-        assert(self.op == .div);
-        assert(self.children[0] != null);
-        assert(self.children[1] != null);
-
-        const a = self.children[0].?.data;
-        const b = self.children[1].?.data;
-
-        self.children[0].?.grad += (1.0 / b) * self.grad;
-        self.children[1].?.grad += (-a / (b * b)) * self.grad;
-    }
-
-    pub fn tanh_backward(self: *Value) void {
-        assert(self.op == .tanh);
-        assert(self.children[0] != null);
-
-        const derivative = 1.0 - (self.data * self.data);
-        self.children[0].?.grad += derivative * self.grad;
-    }
-
-    pub fn build_topo(self: *Value, allocator: std.mem.Allocator) !std.ArrayListUnmanaged(*Value) {
-        var visited: std.AutoHashMapUnmanaged(*Value, void) = .{};
-        defer visited.deinit(allocator);
-
-        var topo: std.ArrayListUnmanaged(*Value) = .empty;
-        try self.build_topo_recursive(&visited, &topo, allocator);
-        std.mem.reverse(*Value, topo.items);
-
-        return topo;
-    }
-
-    fn build_topo_recursive(self: *Value, visited: *std.AutoHashMapUnmanaged(*Value, void), topo: *std.ArrayListUnmanaged(*Value), allocator: std.mem.Allocator) !void {
-        if (visited.contains(self)) return;
-
-        try visited.put(allocator, self, {});
-
-        for (self.children) |maybe_child| {
-            if (maybe_child) |child| {
-                try child.build_topo_recursive(visited, topo, allocator);
-            }
-        }
-
-        try topo.append(allocator, self);
-    }
-
-    pub fn backward(self: *Value, allocator: std.mem.Allocator) !void {
-        self.grad = 1.0;
-        var topo = try build_topo(self, allocator);
-        defer topo.deinit(allocator);
-
-        for (topo.items) |node| {
-            if (node.op) |operation| {
-                switch (operation) {
-                    .add => node.add_backward(),
-                    .sub => node.sub_backward(),
-                    .mul => node.mul_backward(),
-                    .div => node.div_backward(),
-                    .pow => node.pow_backward(),
-                    .exp => node.exp_backward(),
-                    .tanh => node.tanh_backward(),
-                }
-            }
-        }
-    }
-
-    // very shaky impl, maybe the future me will regret this
-    pub fn debug(self: Value) void {
-        std.debug.print("Value(data={d:.4}", .{self.data});
-        var has_children = false;
-        for (self.children) |maybe_child| {
-            if (maybe_child != null) {
-                if (!has_children) {
-                    std.debug.print(", children=[", .{});
-                    has_children = true;
-                } else {
-                    std.debug.print(", ", .{});
-                }
-                std.debug.print("{d:.4}", .{maybe_child.?.data});
-            }
-        }
-        if (has_children) std.debug.print("]", .{});
-
-        std.debug.print(", op={any})\n", .{self.op});
-    }
+    id: u32,
 };
+
+pub fn Tape(comptime max_nodes: u32) type {
+    return struct {
+        const Self = @This();
+
+        nodes: [max_nodes]Value = undefined,
+        len: u32 = 0,
+
+        pub fn new_value(self: *Self, data: f32) *Value {
+            assert(self.len < max_nodes);
+            const i = self.len;
+            self.len += 1;
+            self.nodes[i] = .{
+                .data = data,
+                .grad = 0.0,
+                .children = .{ null, null },
+                .op = null,
+                .op_data = 0.0,
+                .id = i,
+            };
+            return &self.nodes[i];
+        }
+
+        pub fn add(self: *Self, a: *Value, b: *Value) *Value {
+            const out = self.new_value(a.data + b.data);
+            out.children = .{ a, b };
+            out.op = .add;
+            return out;
+        }
+
+        pub fn mul(self: *Self, a: *Value, b: *Value) *Value {
+            const out = self.new_value(a.data * b.data);
+            out.children = .{ a, b };
+            out.op = .mul;
+            return out;
+        }
+
+        pub fn tanh(self: *Self, x: *Value) *Value {
+            const out = self.new_value(std.math.tanh(x.data));
+            out.children = .{ x, null };
+            out.op = .tanh;
+            return out;
+        }
+
+        pub fn zero_grads(self: *Self) void {
+            var i: u32 = 0;
+            while (i < self.len) : (i += 1) self.nodes[i].grad = 0;
+        }
+
+        pub fn backward(self: *Self, root: *Value) void {
+            var visited: [max_nodes]bool = [_]bool{false} ** max_nodes;
+            var s1: [max_nodes]*Value = undefined;
+            var sp1: u32 = 0;
+            var s2: [max_nodes]*Value = undefined;
+            var sp2: u32 = 0;
+
+            // DFS
+            s1[sp1] = root;
+            sp1 += 1;
+            while (sp1 != 0) {
+                sp1 -= 1;
+                const v = s1[sp1];
+                if (visited[v.id]) continue;
+                visited[v.id] = true;
+
+                s2[sp2] = v;
+                sp2 += 1;
+
+                const kids = v.children;
+                if (kids[0]) |k0| {
+                    s1[sp1] = k0;
+                    sp1 += 1;
+                }
+                if (kids[1]) |k1| {
+                    s1[sp1] = k1;
+                    sp1 += 1;
+                }
+            }
+
+            self.zero_grads();
+            root.grad = 1.0;
+
+            var i: u32 = 0;
+            while (i < sp2) : (i += 1) {
+                const v = s2[i];
+                switch (v.op orelse continue) {
+                    .add => {
+                        v.children[0].?.grad += v.grad;
+                        v.children[1].?.grad += v.grad;
+                    },
+                    .mul => {
+                        const a = v.children[0].?;
+                        const b = v.children[1].?;
+                        a.grad += b.data * v.grad;
+                        b.grad += a.data * v.grad;
+                    },
+                    .tanh => {
+                        const x = v.children[0].?;
+                        const d = 1.0 - (v.data * v.data);
+                        x.grad += d * v.grad;
+                    },
+                }
+            }
+        }
+    };
+}
