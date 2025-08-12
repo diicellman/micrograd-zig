@@ -1,6 +1,6 @@
 # micrograd-zig
 
-_[LOGIC — Medium: Success]_ You piece it together: a tiny autodiff, big lessons.
+> **[LOGIC — Medium: Success]** You piece it together: a tiny autodiff, big lessons.
 
 Karpathy’s micrograd – but in Zig. This is a small, educational rewrite with a tape based engine and a toy MLP on top. It’s meant for learning purposes!
 
